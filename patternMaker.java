@@ -9,10 +9,14 @@ import java.util.*;
 
 public class patternMaker {
 
-	private BufferedImage bimg;
+	private BufferedImage origImg;
 	private int numStrings;
-	private int width;
-	private int height;
+	private int imgWidth;
+	private int imgHeight;
+	private int pixelWidth;
+	private int gridWidth;
+	private int gridHeight;
+	private int[][] colorGrid;
 	private HashSet<Integer> dmcColors;
 	private BufferedImage pixImg;
 	private BufferedImage clusterImg;
@@ -24,204 +28,107 @@ public class patternMaker {
 	
 	public patternMaker(BufferedImage img, int num)
 	{
-		bimg = img;
-		width = bimg.getWidth();
-		height = bimg.getHeight();
+		origImg = img;
 		numStrings = num;
+		imgWidth = img.getWidth();
+		imgHeight = img.getHeight();
+		
+		pixelWidth = (int) (imgWidth*2f/numStrings);
+		pixelWidth = (pixelWidth % 2) == 1 ? pixelWidth : pixelWidth - 1; // Make sure pixel width is odd
+		gridWidth = 2*(imgWidth/pixelWidth) - 1;
+		gridHeight = imgHeight/pixelWidth - 1;
+		colorGrid = new int[gridHeight][gridWidth];
+		
 		colorMap = new HashMap<Integer, Set<Integer>>();
 		colorCount = new HashMap<Integer, Integer>();
 	}
 	
+	
 	public void pixelate()
 	{
-		pixImg = new BufferedImage(width, height, BufferedImage.TYPE_INT_RGB);
-		
-		int step = (int)(width*2f/numStrings);
-		if ((step % 2) == 1) {
-			step = step - 1;
-		}
-		int halfStep = step/2;
-		int rsum;
-		int gsum;
-		int bsum;
-		int rgb;
-		int ravg;
-		int bavg;
-		int gavg;
-		int rgbavg;
-		int[] rgbArray;
-		int x;
-		int y;
-		for (int a= 0; a < width - step; a=a+step)
+		int halfPW = pixelWidth/2;
+		for (int a= 0; a < gridWidth; a++)
 		{
-			for (int b= halfStep; b < height - halfStep; b=b+step)
+			for (int b = 0; b < gridHeight; b++)
 			{
-				rsum = 0;
-				gsum = 0;
-				bsum = 0;
-				for (int i=0; i < halfStep; i++)
+				int rsum = 0;
+				int gsum = 0;
+				int bsum = 0;
+				int incrX = (a%2) == 1 ? 0 : 1;
+				int xStart = (a/2)*pixelWidth + (a%2)*(halfPW + 1); 
+				int yStart = halfPW + pixelWidth*b + (a%2)*(halfPW);
+				for (int i = 0; i < pixelWidth; i++)
 				{
-					x = a + i;
-					y = b + i;
-					for (int j=0; j < halfStep; j++)
+					for (int j = 0; j < halfPW + incrX; j++)
 					{
-						rgb = bimg.getRGB(x + j, y - j);
+						int x = xStart + j;
+						int y = yStart - j;
+						int rgb = origImg.getRGB(x, y);
 						rsum += (rgb >> 16) & 0xFF;
 						gsum += (rgb >> 8) & 0xFF;
-						bsum += rgb & 0xFF;
+						bsum += rgb & 0xFF;						
 					}
+					xStart = xStart + incrX;
+					yStart = incrX == 1 ? yStart : yStart + 1;
+					incrX = incrX == 1 ? 0 : 1;
 				}
-				
-				for (int i=0; i < halfStep - 1; i++)
-				{
-					x = a + i + 1;
-					y = b + i;
-					for (int j=0; j < halfStep - 1; j++)
-					{
-						rgb = bimg.getRGB(x + j, y - j);
-						rsum += (rgb >> 16) & 0xFF;
-						gsum += (rgb >> 8) & 0xFF;
-						bsum += rgb & 0xFF;
-					}
-				}
-				int numPixels = 2*halfStep*halfStep - 2*halfStep + 1;
-				ravg = rsum/(numPixels);
-				gavg = gsum/(numPixels);
-				bavg = bsum/(numPixels);
-				rgbavg = ravg;
+				int numPixels = (a%2) == 1 ? 2*(halfPW)*(halfPW +1) : halfPW*halfPW + (halfPW+1)*(halfPW+1);
+				int ravg = rsum/(numPixels);
+				int gavg = gsum/(numPixels);
+				int bavg = bsum/(numPixels);
+				int rgbavg = ravg;
 				rgbavg = (rgbavg << 8) + gavg;
 				rgbavg = (rgbavg << 8) + bavg;
-				Integer rgbAvg = new Integer(rgbavg);
-				Set<Integer> tempSet = new HashSet<Integer>();
-				tempSet.add(rgbAvg);
-				colorMap.put(rgbAvg, tempSet);
-				int count = colorCount.containsKey(rgbAvg) ? colorCount.get(rgbavg) : 0;
-				colorCount.put(rgbAvg, count + 1);
-				for (int i=0; i < halfStep; i++)
-				{
-					x = a + i;
-					y = b - i;
-					for (int j=0; j < halfStep; j++)
-					{
-						pixImg.setRGB(x + j, y + j, rgbavg);
-					}
-				}
+				colorGrid[b][a] = rgbavg;
 				
-				for (int i=0; i < halfStep - 1; i++)
+				Integer rgbAvg = new Integer(rgbavg);
+				int count = 0;
+				if (!colorMap.containsKey(rgbAvg)) {
+					Set<Integer> tempSet = new HashSet<Integer>();
+					tempSet.add(rgbAvg);
+					colorMap.put(rgbAvg, tempSet);
+				} else {
+					count = colorCount.get(rgbAvg);
+				}
+				colorCount.put(rgbAvg, count + 1);
+			}
+		}
+	}
+	
+	public void writeImage(String fileName)
+	{
+		BufferedImage img = new BufferedImage(imgWidth, imgHeight, BufferedImage.TYPE_INT_RGB);
+		int halfPW = pixelWidth/2;
+		for (int a= 0; a < gridWidth; a++)
+		{
+			for (int b = 0; b < gridHeight; b++)
+			{
+				int rgb = colorGrid[b][a];
+				int incrX = (a%2) == 1 ? 0 : 1;
+				int xStart = (a/2)*pixelWidth + (a%2)*(halfPW + 1); 
+				int yStart = halfPW + pixelWidth*b + (a%2)*(halfPW);
+				for (int i = 0; i < pixelWidth; i++)
 				{
-					x = a + i + 1;
-					y = b - i;
-					for (int j=0; j < halfStep - 1; j++)
+					for (int j = 0; j < halfPW + incrX; j++)
 					{
-						pixImg.setRGB(x + j, y + j, rgbavg);
+						int x = xStart + j;
+						int y = yStart - j;
+						img.setRGB(x, y, rgb);
 					}
+					xStart = xStart + incrX;
+					yStart = incrX == 1 ? yStart : yStart + 1;
+					incrX = incrX == 1 ? 0 : 1;
 				}
 			}
 		}
-		
-		for (int a= halfStep; a < width - step; a=a+step)
-		{
-			for (int b= step; b < height - step; b=b+step)
-			{
-				rsum = 0;
-				gsum = 0;
-				bsum = 0;
-				for (int i=0; i < halfStep; i++)
-				{
-					x = a + i;
-					y = b + i;
-					for (int j=0; j < halfStep; j++)
-					{
-						rgb = bimg.getRGB(x + j, y - j);
-						rsum += (rgb >> 16) & 0xFF;
-						gsum += (rgb >> 8) & 0xFF;
-						bsum += rgb & 0xFF;
-					}
-				}
-				
-				for (int i=0; i < halfStep - 1; i++)
-				{
-					x = a + i + 1;
-					y = b + i;
-					for (int j=0; j < halfStep - 1; j++)
-					{
-						rgb = bimg.getRGB(x + j, y - j);
-						rsum += (rgb >> 16) & 0xFF;
-						gsum += (rgb >> 8) & 0xFF;
-						bsum += rgb & 0xFF;
-					}
-				}
-				int numPixels = 2*halfStep*halfStep - 2*halfStep + 1;
-				ravg = rsum/(numPixels);
-				gavg = gsum/(numPixels);
-				bavg = bsum/(numPixels);
-				rgbavg = ravg;
-				rgbavg = (rgbavg << 8) + gavg;
-				rgbavg = (rgbavg << 8) + bavg;
-				Integer rgbAvg = new Integer(rgbavg);
-				Set<Integer> tempSet = new HashSet<Integer>();
-				tempSet.add(rgbAvg);
-				colorMap.put(rgbAvg, tempSet);
-				int count = colorCount.containsKey(rgbAvg) ? colorCount.get(rgbavg) : 0;
-				colorCount.put(rgbAvg, count + 1);
-				for (int i=0; i < halfStep; i++)
-				{
-					x = a + i;
-					y = b - i;
-					for (int j=0; j < halfStep; j++)
-					{
-						pixImg.setRGB(x + j, y + j, rgbavg);
-					}
-				}
-				
-				for (int i=0; i < halfStep - 1; i++)
-				{
-					x = a + i + 1;
-					y = b - i;
-					for (int j=0; j < halfStep - 1; j++)
-					{
-						pixImg.setRGB(x + j, y + j, rgbavg);
-					}
-				}
-			}
-		}
-		File output = new File("C:\\Users\\Morgan\\Desktop\\pix.png");
+		File output = new File(fileName + ".png");
 		try {
-			ImageIO.write(pixImg, "png", output);
+			ImageIO.write(img, "png", output);
 		} catch (IOException e) {
-			// Do something
-		}
+			System.out.println(String.format("Error writing %s \nMessgage: %s", fileName, e.getMessage()));
+		}			
 	}
-	
 
-	private float sim1(int rgb1, int rgb2)
-	{
-		float r1 = (rgb1 >> 16) & 0xFF;
-		float g1 = (rgb1 >> 8) & 0xFF;
-		float b1 = rgb1 & 0xFF;
-		float r2 = (rgb2 >> 16) & 0xFF;
-		float g2 = (rgb2 >> 8) & 0xFF;
-		float b2 = rgb2 & 0xFF;
-		float mag1 = (float)Math.sqrt(r1*r1 + b1*b1 + g1*g1);
-		float mag2 = (float)Math.sqrt(r2*r2 + b2*b2 + g2*g2);
-		return ((r1*r2 + b1*b2 + g1*g2)/(mag1*mag2)) * ((float)Math.min(mag1, mag2)/Math.max(mag1, mag2));
-	}
-	
-		private float sim2(int rgb1, int rgb2)
-	{
-		float r1 = (rgb1 >> 16) & 0xFF;
-		float g1 = (rgb1 >> 8) & 0xFF;
-		float b1 = rgb1 & 0xFF;
-		float r2 = (rgb2 >> 16) & 0xFF;
-		float g2 = (rgb2 >> 8) & 0xFF;
-		float b2 = rgb2 & 0xFF;
-		float mag1 = (float)Math.sqrt(r1*r1 + b1*b1 + g1*g1);
-		float mag2 = (float)Math.sqrt(r2*r2 + b2*b2 + g2*g2);
-		float cosSim = ((r1*r2 + b1*b2 + g1*g2)/(mag1*mag2));
-		return cosSim * cosSim * ((float)Math.min(mag1, mag2)/Math.max(mag1, mag2));
-	}
-	
-	
 	public void clusterColors(int numColorsClustered)
 	{
 		int numColors = colorCount.size();
@@ -254,7 +161,6 @@ public class patternMaker {
 					}
 				}
 			}
-			//System.out.println(colorToMerge1 + " " + colorToMerge2 + " " + color1 + " " + color2);
 			int count1 = colorCount.get(colorToMerge1);
 			int count2 = colorCount.get(colorToMerge2);
 			int newColor = averageColors(colorToMerge1, colorToMerge2, count1, count2);
@@ -273,12 +179,111 @@ public class patternMaker {
 			colorCount.remove(colorToMerge2);
 			colorCount.put(newColor, count1 + count2 + maybeCount);
 			numColors = colorCount.size();
-			//System.out.println(String.format("map %d		%d count",colorMap.size(), numColors));
 		}
-		
 	}
 	
-	private void loadColors()
+
+	public void updateColorGrid()
+	{
+		HashMap<Integer, Integer> colorFun = new HashMap<Integer, Integer>();
+		Set<Integer> mapSet = colorMap.keySet();
+		Set<Integer> countSet = colorCount.keySet();
+		Iterator<Integer> iter = mapSet.iterator();
+		while (iter.hasNext())
+		{
+			int color = iter.next();
+			Set<Integer> tempSet = colorMap.get(color);
+			Iterator<Integer> iter2 = tempSet.iterator();
+			while(iter2.hasNext())
+			{
+				int orig = iter2.next();
+				colorFun.put(orig, color);
+			}
+		}
+		for (int x=0; x < gridWidth; x++)
+		{
+			for (int y=0;y < gridHeight; y++)
+			{
+				int rgbOld = colorGrid[y][x];
+				int rgbNew = colorFun.containsKey(rgbOld) ? colorFun.get(rgbOld) : 16711680;
+				colorGrid[y][x] = rgbNew;
+			}
+		}
+	}
+	
+	public void calculateNumStrings()
+	{
+		int sum = 0;
+		Set<Integer> curColors = colorCount.keySet();
+		Iterator<Integer> iterColors = curColors.iterator();
+		while (iterColors.hasNext())
+		{
+			int color = iterColors.next();
+			int[][] curColorGrid = new int[gridHeight*2][gridWidth];
+			for (int i=0; i< gridHeight*2;i++)
+			{
+				Arrays.fill(curColorGrid[i], -1);
+			}
+			for (int x=0; x < gridWidth; x++)
+			{
+				for (int y=0; y < gridHeight; y++)
+				{
+					if (colorGrid[y][x] == color)
+					{
+						curColorGrid[y*2 + (x%2)][x] = 0;
+					}
+				}
+			}		
+			int highest = 0;
+			for (int x=1; x < gridWidth; x++)
+			{
+				for (int y=gridHeight*2 - 1; y >= 0; y--)
+				{
+					if (curColorGrid[y][x] != -1)
+					{
+						int i = -1;
+						boolean placeFound;
+						do {
+							placeFound = true;
+							i++;
+							for (int j = Math.max(0,y - x + i); j < Math.min(gridHeight*2 - 1, y + x - i); j++)
+							{
+								if (curColorGrid[j][i] != -1)
+								{
+									if ((Math.abs(y-j)+1)/(Math.abs(x-curColorGrid[j][i])+1) == 0)
+									{
+										placeFound = false;
+									}
+								}
+							}
+						} while (!placeFound);
+						curColorGrid[y][i] = x;
+						curColorGrid[y][x] = -1;
+						highest = Math.max(highest, i);
+					}
+				}
+			}
+			System.out.println(String.format("\tColor %d requires %d strings", color, highest+1));
+			sum = sum + highest + 1;
+			/*
+			StringBuffer printArray = new StringBuffer(gridHeight*gridWidth*2);
+			for (int i=0; i< gridHeight*2; i++)
+			{
+				printArray.append(curColorGrid[i][0]);
+				for (int j=1; j< gridWidth; j++)
+				{
+					printArray.append("\t");
+					printArray.append(curColorGrid[i][j]);
+				}
+				printArray.append("\n");
+			}
+			System.out.println(printArray.toString());
+			*/
+		}
+		System.out.println(String.format("%d strings total are needed", sum));
+	}
+	
+		private void loadColors()
 	{
 		File file = new File("colors.txt");
 		try {
@@ -306,60 +311,9 @@ public class patternMaker {
 		}
 	}
 	
-	public void writeClusteredImg(int num1, int num2)
-	{
-		HashMap<Integer, Integer> colorFun = new HashMap<Integer, Integer>();
-		Set<Integer> mapSet = colorMap.keySet();
-		Set<Integer> countSet = colorCount.keySet();
-		Iterator<Integer> iter = mapSet.iterator();
-		while (iter.hasNext())
-		{
-			int color = iter.next();
-			Set<Integer> tempSet = colorMap.get(color);
-			Iterator<Integer> iter2 = tempSet.iterator();
-			while(iter2.hasNext())
-			{
-				int orig = iter2.next();
-				//System.out.println(orig + " : " + color);
-				colorFun.put(orig, color);
-			}
-		}
-		colorFun.put(0, 0);
-		clusterImg = new BufferedImage(width, height, BufferedImage.TYPE_INT_RGB);
-		for (int x=0; x < width; x++)
-		{
-			for (int y=0;y < height; y++)
-			{
-				int color1 = pixImg.getRGB(x,y);
-				int r = (color1 >> 16) & 0xFF;
-				int g = (color1 >> 8) & 0xFF;
-				int b = color1 & 0xFF;
-				color1 = r;
-				color1 = (color1 << 8) + g;
-				color1 = (color1 << 8) + b;
-				int color2 =0;
-				if (colorFun.containsKey(color1))
-				{
-					color2 = colorFun.get(color1);
-				} else
-				{
-					//System.out.println(color1);
-				}
-				clusterImg.setRGB(x, y, color2);
-			}
-		}
-		File output = new File(String.format("C:\\Users\\Morgan\\Desktop\\cluster%d_%d.png",num1,num2));
-		try {
-			ImageIO.write(clusterImg, "png", output);
-		} catch (IOException e) {
-			// Do something
-		}
-	}
-	
 	public void writeDmcClusteredImg(int num1, int num2)
 	{
 		dmcMap = new HashMap<Integer, Integer>();
-		dmcClusteredImg = new BufferedImage(width, height, BufferedImage.TYPE_INT_RGB);
 		Set<Integer> curColors = colorCount.keySet();
 		Iterator<Integer> iterColors = curColors.iterator();
 		while (iterColors.hasNext())
@@ -381,34 +335,6 @@ public class patternMaker {
 			dmcMap.put(color, mostSimColor);
 		}
 		dmcMap.put(0,0);
-		for (int x=0; x < width; x++)
-		{
-			for (int y=0;y < height; y++)
-			{
-				int color1 = clusterImg.getRGB(x,y);
-				int r = (color1 >> 16) & 0xFF;
-				int g = (color1 >> 8) & 0xFF;
-				int b = color1 & 0xFF;
-				color1 = r;
-				color1 = (color1 << 8) + g;
-				color1 = (color1 << 8) + b;
-				int color2 =0;
-				if (dmcMap.containsKey(color1))
-				{
-					color2 = dmcMap.get(color1);
-				} else
-				{
-					//System.out.println(color1);
-				}
-				dmcClusteredImg.setRGB(x, y, color2);
-			}
-		}
-		File output = new File(String.format("C:\\Users\\Morgan\\Desktop\\dmcCluster%d_%d.png",num1,num2));
-		try {
-			ImageIO.write(dmcClusteredImg, "png", output);
-		} catch (IOException e) {
-			System.out.println(e.getMessage());
-		}
 		
 	}
 	
@@ -428,7 +354,33 @@ public class patternMaker {
 		rgbavg = (rgbavg << 8) + bavg;
 		return rgbavg;
 	}
+
+	private float sim1(int rgb1, int rgb2)
+	{
+		float r1 = (rgb1 >> 16) & 0xFF;
+		float g1 = (rgb1 >> 8) & 0xFF;
+		float b1 = rgb1 & 0xFF;
+		float r2 = (rgb2 >> 16) & 0xFF;
+		float g2 = (rgb2 >> 8) & 0xFF;
+		float b2 = rgb2 & 0xFF;
+		float mag1 = (float)Math.sqrt(r1*r1 + b1*b1 + g1*g1);
+		float mag2 = (float)Math.sqrt(r2*r2 + b2*b2 + g2*g2);
+		return ((r1*r2 + b1*b2 + g1*g2)/(mag1*mag2)) * ((float)Math.min(mag1, mag2)/Math.max(mag1, mag2));
+	}
 	
+		private float sim2(int rgb1, int rgb2)
+	{
+		float r1 = (rgb1 >> 16) & 0xFF;
+		float g1 = (rgb1 >> 8) & 0xFF;
+		float b1 = rgb1 & 0xFF;
+		float r2 = (rgb2 >> 16) & 0xFF;
+		float g2 = (rgb2 >> 8) & 0xFF;
+		float b2 = rgb2 & 0xFF;
+		float mag1 = (float)Math.sqrt(r1*r1 + b1*b1 + g1*g1);
+		float mag2 = (float)Math.sqrt(r2*r2 + b2*b2 + g2*g2);
+		float cosSim = ((r1*r2 + b1*b2 + g1*g2)/(mag1*mag2));
+		return cosSim * cosSim * ((float)Math.min(mag1, mag2)/Math.max(mag1, mag2));
+	}	
 	
 	public static void main(String[] args)
 	{
@@ -452,17 +404,18 @@ public class patternMaker {
 			img = (BufferedImage)ImageIO.read(file);
 		} catch (Exception e)
 		{
-			System.out.println("Something didn't work");
+			System.out.println("Could not load image");
 		} 
 		patternMaker pM = new patternMaker(img, num);
 		pM.pixelate();
-		System.out.println("Pixelation DONE");
+		System.out.println("Pixelating DONE");
+		//pM.writeImage("C:\\Users\\Morgan\\Desktop\\pix" + num);
 		pM.clusterColors(num2);
 		System.out.println("Clustering DONE");
-		pM.writeClusteredImg(num, num2);
-		System.out.println("DONE");
-		pM.loadColors();
-		pM.writeDmcClusteredImg(num, num2);
+		pM.updateColorGrid();
+		pM.writeImage(String.format("C:\\Users\\Morgan\\Desktop\\clustered%d_%d", num, num2));
+		//System.out.println("DONE");
+		pM.calculateNumStrings();
 
 
 	}

@@ -400,7 +400,7 @@ public class patternMaker {
 		BufferedImage img = null;
 		try
 		{
-			File file = new File("C:\\Users\\Morgan\\Desktop\\pic.jpg");
+			File file = new File("C:\\Users\\Morgan\\Desktop\\face.jpg");
 			img = (BufferedImage)ImageIO.read(file);
 		} catch (Exception e)
 		{
@@ -409,11 +409,11 @@ public class patternMaker {
 		patternMaker pM = new patternMaker(img, num);
 		pM.pixelate();
 		System.out.println("Pixelating DONE");
-		//pM.writeImage("C:\\Users\\Morgan\\Desktop\\pix" + num);
+		pM.writeImage("C:\\Users\\Morgan\\Desktop\\sphere" + num);
 		pM.clusterColors(num2);
 		System.out.println("Clustering DONE");
 		pM.updateColorGrid();
-		pM.writeImage(String.format("C:\\Users\\Morgan\\Desktop\\clustered%d_%d", num, num2));
+		pM.writeImage(String.format("C:\\Users\\Morgan\\Desktop\\sphere%d_%d", num, num2));
 		//System.out.println("DONE");
 		pM.calculateNumStrings();
 

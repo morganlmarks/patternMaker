@@ -7,30 +7,7 @@ import java.lang.*;
 import java.util.*;
 
 
-public class patternMaker {
-
-	public class ColorPair implements Comparable<ColorPair>{
-		public int colorLesser;
-		public int colorGreater;
-		public float similarity;
-		
-		public ColorPair(int color1, int color2) {
-			colorLesser = color1 > color2 ? color2 : color1;
-			colorGreater = colorLesser == color2 ? color1 : color2;
-			similarity = sim2(colorLesser, colorGreater);
-		}
-		
-		public int compareTo(ColorPair compairPair) {
-			if (compairPair.similarity < this.similarity) {
-				return -1;
-			} else if (compairPair.similarity > this.similarity) {
-				return 1;
-			} else {
-				return 0;
-			}
-		}
-	}
-	
+public class PatternMaker {
 
 	private BufferedImage origImg;
 	private int numStrings;
@@ -49,7 +26,7 @@ public class patternMaker {
 	private HashMap<Integer, Integer> dmcMap;
 	
 	
-	public patternMaker(BufferedImage img, int num)
+	public PatternMaker(BufferedImage img, int num)
 	{
 		origImg = img;
 		numStrings = num;
@@ -234,7 +211,7 @@ public class patternMaker {
 		}
 		while (numColors > numColorsClustered)
 		{
-			//int NUM_CANDIDATES = numColors/(4* numColorsClustered) + 2;
+			//int NUM_CANDIDATES = numColors/(4* numColorsClustered) + numCandidates;
 			int NUM_CANDIDATES = numCandidates;
 			ArrayList<ColorPair> mergeCandidates = new ArrayList<ColorPair>(NUM_CANDIDATES);
 			float bestRatio = 100;
@@ -550,7 +527,7 @@ public class patternMaker {
 		return rgbavg;
 	}
 
-	private float sim1(int rgb1, int rgb2)
+	public static float sim1(int rgb1, int rgb2)
 	{
 		float r1 = (rgb1 >> 16) & 0xFF;
 		float g1 = (rgb1 >> 8) & 0xFF;
@@ -563,7 +540,7 @@ public class patternMaker {
 		return ((r1*r2 + b1*b2 + g1*g2)/(mag1*mag2)) * ((float)Math.min(mag1, mag2)/Math.max(mag1, mag2));
 	}
 	
-		private float sim2(int rgb1, int rgb2)
+	public static float sim2(int rgb1, int rgb2)
 	{
 		float r1 = (rgb1 >> 16) & 0xFF;
 		float g1 = (rgb1 >> 8) & 0xFF;
@@ -576,6 +553,19 @@ public class patternMaker {
 		float cosSimSquared = ((r1*r2 + b1*b2 + g1*g2)*(r1*r2 + b1*b2 + g1*g2)/(mag1Squared*mag2Squared));
 		return cosSimSquared * ((float)Math.sqrt(Math.min(mag1Squared, mag2Squared)/Math.max(mag1Squared, mag2Squared)));
 	}	
+	
+	public static float sim3(int rgb1, int rgb2)
+	{
+		float r1 = (rgb1 >> 16) & 0xFF;
+		float g1 = (rgb1 >> 8) & 0xFF;
+		float b1 = rgb1 & 0xFF;
+		float r2 = (rgb2 >> 16) & 0xFF;
+		float g2 = (rgb2 >> 8) & 0xFF;
+		float b2 = rgb2 & 0xFF;
+		float mag1 = (float)Math.sqrt(r1*r1 + b1*b1 + g1*g1);
+		float mag2 = (float)Math.sqrt(r2*r2 + b2*b2 + g2*g2);
+		return 2*((r1*r2 + b1*b2 + g1*g2)/(mag1*mag2)) + ((float)Math.min(mag1, mag2)/Math.max(mag1, mag2));
+	}
 	
 	public static void main(String[] args)
 	{
@@ -593,7 +583,7 @@ public class patternMaker {
 		}
 		int num3 = 7;
 		try  {
-			num2 = Integer.parseInt(args[1]);
+			num3 = Integer.parseInt(args[2]);
 		} catch (ArrayIndexOutOfBoundsException e) {
 			System.out.println(String.format("Number of candidates set to %d.", num3));
 		}
@@ -607,7 +597,7 @@ public class patternMaker {
 		{
 			System.out.println("Could not load image");
 		} 
-		patternMaker pM = new patternMaker(img, num);
+		PatternMaker pM = new PatternMaker(img, num);
 		pM.pixelate();
 		System.out.println("Pixelating DONE");
 		pM.writeImage("C:\\Users\\Morgan\\Desktop\\pix" + num);
